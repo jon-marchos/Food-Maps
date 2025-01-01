@@ -7,6 +7,7 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
     <style>
+        /* General Styles */
         body, html {
             margin: 0;
             padding: 0;
@@ -14,6 +15,7 @@
             height: 100%;
         }
 
+        /* Sidebar Styles */
         .sidebar {
             position: absolute;
             top: 20px;
@@ -24,8 +26,13 @@
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
             padding: 20px;
             z-index: 1000;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: Arial, sans-serif;
             backdrop-filter: blur(5px);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-340px); /* Moves the sidebar off-screen */
         }
 
         .sidebar h1 {
@@ -47,6 +54,27 @@
             color: #333;
         }
 
+        /* Toggle Button Styles */
+        .sidebar-toggle {
+            position: absolute;
+            top: 20px;
+            left: 340px;
+            background: #0078FF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 5px 10px;
+            font-size: 16px;
+            z-index: 1100;
+            transition: left 0.3s ease-in-out;
+        }
+
+        .sidebar.collapsed + .sidebar-toggle {
+            left: 20px; /* Adjust toggle button when sidebar is hidden */
+        }
+
+        /* Map Section */
         #map {
             width: 100%;
             height: 100%;
@@ -73,7 +101,7 @@
     </style>
 </head>
 <body>
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
         <h1>A Worthwile Bite</h1>
         <h2><i>Rating NYC's Restaurants-- for a rational dining experience between quality and affordability.</i></h2>
         <h2>By Jonathan Marcos</h2>
@@ -89,24 +117,28 @@
         <p>Version 1.0.0.</p>
     </div>
 
+        <!-- Sidebar Toggle Button -->
+        <button class="sidebar-toggle" id="sidebarToggle"><<</button>
+
     <div id="map"></div>
     <script src="config.js"></script>
     <script>
-        mapboxgl.accessToken = config.mapboxAccessToken;
+        mapboxgl.accessToken = 'pk.eyJ1Ijoiam9ud2FzaGVyZSIsImEiOiJjbTVhazNobDk0dmdyMmxxN2l0Yng3Yzg3In0.tOz-_LCUuf2v8DGDKlJVWA';
+    
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
 
-        // Haversine formula for distance calculation
-        function haversineDistance(coord1, coord2) {
-            const R = 6371; // Earth's radius in km
-            const dLat = (coord2[1] - coord1[1]) * Math.PI / 180;
-            const dLon = (coord2[0] - coord1[0]) * Math.PI / 180;
-            const lat1 = coord1[1] * Math.PI / 180;
-            const lat2 = coord2[1] * Math.PI / 180;
-
-            const a = Math.sin(dLat / 2) ** 2 +
-                      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-        }
-
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+                if (sidebar.classList.contains('collapsed')) {
+                    sidebarToggle.innerHTML = '>>';
+                } else {
+                    sidebarToggle.innerHTML = '<<';
+                }
+            });
+        });
+    
         const map = new mapboxgl.Map({
             container: 'map',
             style: 'mapbox://styles/jonwashere/clz533n5602ze01qofnpm3gw3',
@@ -119,13 +151,13 @@
                 [-73.5, 41.2]
             ]
         });
-
+    
         map.on('load', () => {
             map.addSource('food_ratings', {
                 type: 'geojson',
                 data: './food_ratings.geojson'
             });
-
+    
             map.addLayer({
                 id: 'default-points-layer',
                 type: 'circle',
@@ -136,16 +168,16 @@
                     'circle-opacity': 0.6
                 }
             });
-
+    
             const emojiMappings = [
-                { id: 'emoji-face-vomiting', emoji: '🤮', filter: ['all', ['>=', ['get', 'rating'], 0], ['<', ['get', 'rating'], 4]] },
+                { id: 'emoji-face-vomiting', emoji: '🤮', filter: ['<', ['get', 'rating'], 4] },
                 { id: 'emoji-x', emoji: '❌', filter: ['all', ['>=', ['get', 'rating'], 4], ['<', ['get', 'rating'], 6]] },
                 { id: 'emoji-eyes', emoji: '👀', filter: ['all', ['>=', ['get', 'rating'], 8], ['<', ['get', 'rating'], 9]] },
                 { id: 'emoji-heart-eyes', emoji: '😍', filter: ['all', ['>=', ['get', 'rating'], 9], ['<', ['get', 'rating'], 9.5]] },
                 { id: 'emoji-crown', emoji: '👑', filter: ['all', ['>=', ['get', 'rating'], 9.5], ['<', ['get', 'rating'], 10]] },
                 { id: 'emoji-trophy', emoji: '🏆', filter: ['==', ['get', 'rating'], 10] }
             ];
-
+    
             emojiMappings.forEach(({ id, emoji, filter }) => {
                 const emojiCanvas = document.createElement('canvas');
                 emojiCanvas.width = 64;
@@ -170,23 +202,21 @@
                     });
                 };
             });
-
-            // Hover Interaction
+    
             let popup = new mapboxgl.Popup({ closeButton: false });
-
+    
             [...emojiMappings.map(e => e.id), 'default-points-layer'].forEach(layer => {
                 map.on('mouseenter', layer, (e) => {
                     map.getCanvas().style.cursor = 'pointer';
                     const props = e.features[0].properties;
-                    popup.setLngLat(e.lngLat)
-                         .setHTML(`
-                             <div class="popup-name">${props.name || 'No Name'}</div>
-                             <div class="popup-description">${props.description || 'No description available'}</div>
-                             <div class="popup-rating"><strong>Rating:</strong> ${props.rating || 'N/A'}</div>
-                             <div class="popup-cuisine"><strong>Cuisine:</strong> ${props.cuisine || 'N/A'}</div>
-                         `)
-                         .addTo(map);
+                    popup.setLngLat(e.lngLat).setHTML(`
+                        <div class="popup-name">${props.name || 'No Name'}</div>
+                        <div class="popup-description">${props.description || 'No description available'}</div>
+                        <div class="popup-rating"><strong>Rating:</strong> ${props.rating || 'N/A'}</div>
+                        <div class="popup-cuisine"><strong>Cuisine:</strong> ${props.cuisine || 'N/A'}</div>
+                    `).addTo(map);
                 });
+    
                 map.on('mouseleave', layer, () => {
                     map.getCanvas().style.cursor = '';
                     popup.remove();
@@ -194,5 +224,6 @@
             });
         });
     </script>
+    
 </body>
 </html>
